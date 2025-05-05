@@ -20,7 +20,9 @@ def load_words() -> tuple[list[str], npt.NDArray[np.float32]]:
 
     print("Loading glove embeddings...")
     if (data_path / "glove.840B.300d.npz").is_file():
-        glove = np.load(data_path / "glove.840B.300d.npz", allow_pickle=True)["arr_0"].item()
+        glove = np.load(data_path / "glove.840B.300d.npz", allow_pickle=True)[
+            "arr_0"
+        ].item()
     else:
         with (data_path / "glove.840B.300d.txt").open() as f:
             for line in f:
@@ -33,7 +35,13 @@ def load_words() -> tuple[list[str], npt.NDArray[np.float32]]:
     wnl = WordNetLemmatizer()
 
     with (data_path / "20k.txt").open() as f:
-        words = {wnl.lemmatize(word.strip()) for word in f.readlines()}
+        words = {word.strip() for word in f.readlines()}
+
+    # not necessarily correct from a nlp perspective, but contexto.me seems to treat all infinitives this way,
+    # e.g. shipping and ship are assigned the same rank
+    words = {
+        wnl.lemmatize(word, pos="v" if word.endswith("ing") else "n") for word in words
+    }
 
     filtered_words = [word for word in words if word in glove]
     vectors = np.vstack([glove[word] for word in filtered_words])
