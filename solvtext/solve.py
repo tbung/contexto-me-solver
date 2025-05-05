@@ -31,7 +31,7 @@ class Solver:
     def distances(self, word_idx: int) -> npt.NDArray[np.float32]:
         return 1 - (
             (self.vectors[word_idx] @ self.vectors.T)
-            / np.linalg.norm(self.vectors[0])
+            / np.linalg.norm(self.vectors[word_idx])
             / np.linalg.norm(self.vectors, axis=1)
         )
 
