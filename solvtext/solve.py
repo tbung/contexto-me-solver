@@ -1,6 +1,6 @@
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser
 from dataclasses import dataclass, field
-from typing import Literal, overload
+from typing import Literal, cast, overload
 
 import rich
 from solvtext.data import load_words
@@ -48,6 +48,9 @@ class Solver:
         self.candidate_mask: npt.NDArray[np.integer] = np.ones(
             (len(self.words),), dtype=np.integer
         )
+        self.already_guessed_mask: npt.NDArray[np.bool_] = np.zeros(
+            (len(self.words),), dtype=np.bool_
+        )
 
         self.guesses: list[Guess] = []
 
@@ -69,29 +72,37 @@ class Solver:
             / np.linalg.norm(self.vectors, axis=1)
         )
 
-    def add_guess(self, word_idx: int, rank: int):
-        guess = Guess(rank, self.words[word_idx], word_idx)
-
-        self.guesses.append(guess)
-        self.guesses.sort()
-
-        # TODO: only need to do this for new guess, then again this is rather cheap
+    def update_candidates(self) -> None:
+        score = np.zeros_like(self.candidate_mask)
         for guess, other in zip(self.guesses, self.guesses[1:]):
-            self.candidate_mask &= (
+            score += (
                 self.distances(guess.word_idx)
                 <= self.distances(other.word_idx) + self.distance_offset
             )
 
-            if (
-                self.debug_target
-                and self.candidate_mask[self.words.index(self.debug_target)] == 0
-            ):
+            if self.debug_target and score[
+                self.words.index(self.debug_target)
+            ] < np.amax(score):
                 print(
                     f"{guess.word} ({guess.rank}) - {self.debug_target}: {self.distances(guess.word_idx)[self.words.index(self.debug_target)]}"
                 )
                 print(
                     f"{other.word} ({other.rank}) - {self.debug_target}: {self.distances(other.word_idx)[self.words.index(self.debug_target)]}"
                 )
+
+        score[self.already_guessed_mask] = 0
+
+        self.candidate_mask = np.logical_and(
+            (1 - self.already_guessed_mask), score == np.amax(score)
+        ).astype(int)
+
+    def add_guess(self, word_idx: int, rank: int):
+        guess = Guess(rank, self.words[word_idx], word_idx)
+
+        self.guesses.append(guess)
+        self.guesses.sort()
+
+        self.update_candidates()
 
     def make_guess(self) -> int:
         if len(self.guesses) == 0:
@@ -115,8 +126,9 @@ class Solver:
                 )
             ]
 
-        self.candidate_mask[word_idx] = 0
-        return word_idx
+        self.already_guessed_mask[word_idx] = 1
+
+        return cast(int, word_idx)
 
     def interact(self) -> bool:
         rich.print(
@@ -133,6 +145,7 @@ class Solver:
         )
 
         if rank == "n":
+            self.update_candidates()
             return True
 
         if rank == "c":
@@ -140,7 +153,7 @@ class Solver:
             if new_word in self.words:
                 word_idx = self.words.index(new_word)
                 word = new_word
-                self.candidate_mask[word_idx] = 0
+                self.already_guessed_mask[word_idx] = 1
             else:
                 print(f"Unknown word, using '{word}'")
 
