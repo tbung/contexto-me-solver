@@ -7,6 +7,8 @@ from nltk.stem import WordNetLemmatizer
 
 def load_words() -> tuple[list[str], npt.NDArray[np.float32]]:
     data_path = Path("/home/tillb/Projects/context-me-solver/data")
+    embedding_file = "glove.840B.300d"
+    # embedding_file = "glove.42B.300d"
 
     if (data_path / "words.txt").is_file() and (data_path / "vectors.npz").is_file():
         with (data_path / "words.txt").open() as f:
@@ -19,17 +21,19 @@ def load_words() -> tuple[list[str], npt.NDArray[np.float32]]:
     glove: dict[str, npt.NDArray[np.float32]] = {}
 
     print("Loading glove embeddings...")
-    if (data_path / "glove.840B.300d.npz").is_file():
-        glove = np.load(data_path / "glove.840B.300d.npz", allow_pickle=True)[
+    if (data_path / f"{embedding_file}.npz").is_file():
+        glove = np.load(data_path / f"{embedding_file}.npz", allow_pickle=True)[
             "arr_0"
         ].item()
     else:
-        with (data_path / "glove.840B.300d.txt").open() as f:
+        with (data_path / f"{embedding_file}.txt").open() as f:
             for line in f:
                 entries = line.split(" ")
                 glove[entries[0]] = np.array(entries[1:], dtype=np.float32)
 
-        np.savez_compressed(data_path / "glove.840B.300d.npz", glove, allow_pickle=True)
+        np.savez_compressed(
+            data_path / f"{embedding_file}.npz", glove, allow_pickle=True
+        )
 
     print("Encoding word list...")
     wnl = WordNetLemmatizer()
