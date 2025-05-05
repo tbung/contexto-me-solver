@@ -55,6 +55,12 @@ class Solver:
 
         self.distance_offset: float = distance_offset
 
+        self._num_guesses: int = 0
+
+    @property
+    def num_guesses(self) -> int:
+        return self._num_guesses + len(self.guesses)
+
     @lru_cache
     def distances(self, word_idx: int) -> npt.NDArray[np.float32]:
         return 1 - (
@@ -87,36 +93,47 @@ class Solver:
                     f"{other.word} ({other.rank}) - {self.debug_target}: {self.distances(other.word_idx)[self.words.index(self.debug_target)]}"
                 )
 
-    @overload
-    def make_guess(self, interactive: Literal[False]) -> int: ...
-
-    @overload
-    def make_guess(self, interactive: Literal[True]) -> None: ...
-
-    @overload
-    def make_guess(self) -> None: ...
-
-    def make_guess(self, interactive: bool = True) -> int | None:
-        if interactive:
-            rich.print(
-                f"Remaining search space: {self.candidate_mask.sum()}/{self.candidate_mask.shape[0]}"
-            )
-
-        word_idx = np.random.choice(np.where(self.candidate_mask)[0])
-        word = self.words[word_idx]
+    def make_guess(self) -> int:
+        if len(self.guesses) == 0:
+            word_idx = np.random.choice(np.where(self.candidate_mask)[0])
+        elif self.guesses[0].rank <= 500:
+            candidate_idx = np.where(self.candidate_mask)[0]
+            word_idx = candidate_idx[
+                np.random.choice(
+                    self.distances(self.guesses[0].word_idx)[candidate_idx].argsort()[
+                        : (self.candidate_mask.sum() + 1) // 2
+                    ]
+                )
+            ]
+        else:
+            candidate_idx = np.where(self.candidate_mask)[0]
+            word_idx = candidate_idx[
+                np.random.choice(
+                    self.distances(self.guesses[0].word_idx)[candidate_idx].argsort()[
+                        self.candidate_mask.sum() // 2 :
+                    ]
+                )
+            ]
 
         self.candidate_mask[word_idx] = 0
+        return word_idx
 
-        if not interactive:
-            return word_idx
+    def interact(self) -> bool:
+        rich.print(
+            f"Remaining search space: {self.candidate_mask.sum()}/{self.candidate_mask.shape[0]}"
+        )
+
+        word_idx = self.make_guess()
+        word = self.words[word_idx]
 
         rich.print(f"Guess: [bold]{word}[/bold]")
         rank = GuessPrompt.ask(
             "Enter rank or 'n' if unknown or 'c' if contexto.me picks a different word",
             show_choices=False,
         )
+
         if rank == "n":
-            return
+            return True
 
         if rank == "c":
             new_word = Prompt.ask("Enter new word", default=word)
@@ -133,6 +150,8 @@ class Solver:
 
         self.add_guess(word_idx, rank)
 
+        return rank > 1
+
 
 def simulate():
     solver = Solver()
@@ -146,7 +165,7 @@ def simulate():
     print(solver.words[target_idx])
 
     while True:
-        guess_idx = solver.make_guess(interactive=False)
+        guess_idx = solver.make_guess()
         solver.add_guess(guess_idx, rank[guess_idx])
 
         num_guesses += 1
@@ -202,10 +221,11 @@ def main():
     )
     num_guesses = 0
     try:
-        while True:
-            solver.make_guess()
+        while solver.interact():
             num_guesses += 1
     except (KeyboardInterrupt, ValueError):
+        pass
+    finally:
         rich.print(
-            f"\nNumber of guesses (valid/all): {len(solver.guesses)}/{num_guesses}"
+            f"\nNumber of guesses (valid/all): {solver.num_guesses}/{num_guesses}"
         )
