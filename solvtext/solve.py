@@ -69,9 +69,8 @@ class Solver:
         self.guesses.append(guess)
         self.guesses.sort()
 
-        guess = self.guesses[0]
-
-        for other in self.guesses[1:]:
+        # TODO: only need to do this for new guess, then again this is rather cheap
+        for guess, other in zip(self.guesses, self.guesses[1:]):
             self.candidate_mask &= (
                 self.distances(guess.word_idx)
                 <= self.distances(other.word_idx) + self.distance_offset
