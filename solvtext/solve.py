@@ -107,12 +107,21 @@ class Solver:
     def make_guess(self) -> int:
         if len(self.guesses) == 0:
             word_idx = np.random.choice(np.where(self.candidate_mask)[0])
-        elif self.guesses[0].rank <= 500:
+        elif self.guesses[0].rank <= 300:
             candidate_idx = np.where(self.candidate_mask)[0]
             word_idx = candidate_idx[
                 np.random.choice(
                     self.distances(self.guesses[0].word_idx)[candidate_idx].argsort()[
-                        : (self.candidate_mask.sum() + 1) // 2
+                        : max(self.candidate_mask.sum() // 4, 1)
+                    ]
+                )
+            ]
+        elif self.guesses[0].rank <= 1500:
+            candidate_idx = np.where(self.candidate_mask)[0]
+            word_idx = candidate_idx[
+                np.random.choice(
+                    self.distances(self.guesses[0].word_idx)[candidate_idx].argsort()[
+                        : max(self.candidate_mask.sum() // 2, 1)
                     ]
                 )
             ]
