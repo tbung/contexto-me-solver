@@ -1,5 +1,8 @@
+from argparse import ArgumentParser
 from dataclasses import dataclass, field
 from typing import Literal, overload
+
+import rich
 from solvtext.data import load_words
 from functools import lru_cache
 from rich.prompt import IntPrompt
@@ -58,7 +61,10 @@ class Solver:
     def make_guess(self) -> None: ...
 
     def make_guess(self, interactive: bool = True) -> int | None:
-        print(self.candidate_mask.sum())
+        if interactive:
+            rich.print(
+                f"Remaining search space: {self.candidate_mask.sum()}/{self.candidate_mask.shape[0]}"
+            )
 
         word_idx = np.random.choice(np.where(self.candidate_mask)[0])
         word = self.words[word_idx]
@@ -68,7 +74,8 @@ class Solver:
         if not interactive:
             return word_idx
 
-        rank = IntPrompt.ask(f"Guess: {word}\nEnter rank (or -1 if word is unknown)")
+        rich.print(f"Guess: [bold]{word}[/bold]")
+        rank = IntPrompt.ask(f"Enter rank (or -1 if word is unknown)")
         if rank == -1:
             return
 
@@ -99,17 +106,30 @@ def simulate():
 
 
 def main():
-    num_guesses = []
-    for _ in range(100):
-        num_guesses.append(simulate())
+    parser = ArgumentParser()
 
-    print(np.mean(num_guesses))
+    parser.add_argument("--simulate", action="store_true")
+    parser.add_argument(
+        "-n", "--num-simulate", action="store", nargs="?", default=100, type=int
+    )
 
-    # solver = Solver()
-    # num_guesses = 0
-    # try:
-    #     while True:
-    #         solver.make_guess()
-    #         num_guesses += 1
-    # except KeyboardInterrupt:
-    #     print(f"{num_guesses}")
+    args = parser.parse_args()
+
+    if args.simulate:
+        num_guesses = []
+        for _ in range(args.num_simulate):
+            num_guesses.append(simulate())
+
+        print(np.mean(num_guesses))
+        return
+
+    solver = Solver()
+    num_guesses = 0
+    try:
+        while True:
+            solver.make_guess()
+            num_guesses += 1
+    except (KeyboardInterrupt, ValueError):
+        rich.print(
+            f"\nNumber of guesses (valid/all): {len(solver.guesses)}/{num_guesses}"
+        )
