@@ -18,7 +18,7 @@ class Guess:
 
 
 class Solver:
-    def __init__(self):
+    def __init__(self, debug_target: str | None = None):
         self.words: list[str]
         self.vectors: npt.NDArray[np.float32]
 
@@ -29,6 +29,8 @@ class Solver:
         )
 
         self.guesses: list[Guess] = []
+
+        self.debug_target: str | None = debug_target
 
     @lru_cache
     def distances(self, word_idx: int) -> npt.NDArray[np.float32]:
@@ -50,6 +52,17 @@ class Solver:
             self.candidate_mask &= self.distances(guess.word_idx) <= self.distances(
                 other.word_idx
             )
+
+            if (
+                self.debug_target
+                and self.candidate_mask[self.words.index(self.debug_target)] == 0
+            ):
+                print(
+                    f"{guess.word} ({guess.rank}) - {self.debug_target}: {self.distances(guess.word_idx)[self.words.index(self.debug_target)]}"
+                )
+                print(
+                    f"{other.word} ({other.rank}) - {self.debug_target}: {self.distances(other.word_idx)[self.words.index(self.debug_target)]}"
+                )
 
     @overload
     def make_guess(self, interactive: Literal[False]) -> int: ...
@@ -75,7 +88,7 @@ class Solver:
             return word_idx
 
         rich.print(f"Guess: [bold]{word}[/bold]")
-        rank = IntPrompt.ask(f"Enter rank (or -1 if word is unknown)")
+        rank = IntPrompt.ask("Enter rank (or -1 if word is unknown)")
         if rank == -1:
             return
 
@@ -112,6 +125,9 @@ def main():
     parser.add_argument(
         "-n", "--num-simulate", action="store", nargs="?", default=100, type=int
     )
+    parser.add_argument(
+        "--debug-target", action="store", nargs="?", default=None, type=str
+    )
 
     args = parser.parse_args()
 
@@ -123,7 +139,7 @@ def main():
         print(np.mean(num_guesses))
         return
 
-    solver = Solver()
+    solver = Solver(debug_target=args.debug_target)
     num_guesses = 0
     try:
         while True:
