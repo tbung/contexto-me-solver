@@ -64,13 +64,18 @@ class Solver:
     def num_guesses(self) -> int:
         return self._num_guesses + len(self.guesses)
 
-    @lru_cache
-    def distances(self, word_idx: int) -> npt.NDArray[np.float32]:
+    def _vector_distances(
+        self, vector: npt.NDArray[np.float32]
+    ) -> npt.NDArray[np.float32]:
         return 1 - (
-            (self.vectors[word_idx] @ self.vectors.T)
-            / np.linalg.norm(self.vectors[word_idx])
+            (vector @ self.vectors.T)
+            / np.linalg.norm(vector)
             / np.linalg.norm(self.vectors, axis=1)
         )
+
+    @lru_cache
+    def distances(self, word_idx: int) -> npt.NDArray[np.float32]:
+        return self._vector_distances(self.vectors[word_idx])
 
     def update_candidates(self) -> None:
         score = np.zeros_like(self.candidate_mask)
@@ -105,17 +110,25 @@ class Solver:
         self.update_candidates()
 
     def make_guess(self) -> int:
-        if len(self.guesses) == 0:
-            word_idx = np.random.choice(np.where(self.candidate_mask)[0])
-        elif self.guesses[0].rank <= 300:
+        if len(self.guesses) < 2:
+            # word_idx = np.random.choice(np.where(self.candidate_mask)[0])
             candidate_idx = np.where(self.candidate_mask)[0]
+            vector = self.vectors.mean(axis=0)
             word_idx = candidate_idx[
                 np.random.choice(
-                    self.distances(self.guesses[0].word_idx)[candidate_idx].argsort()[
-                        : max(self.candidate_mask.sum() // 4, 1)
-                    ]
+                    self._vector_distances(vector)[candidate_idx].argsort()[:10]
                 )
             ]
+
+        elif self.guesses[0].rank <= 300:
+            candidate_idx = np.where(self.candidate_mask)[0]
+            vector = self.vectors[
+                [guess.word_idx for guess in self.guesses if guess.rank <= 300]
+            ].mean(axis=0)
+            word_idx = candidate_idx[
+                self._vector_distances(vector)[candidate_idx].argmin()
+            ]
+
         elif self.guesses[0].rank <= 1500:
             candidate_idx = np.where(self.candidate_mask)[0]
             word_idx = candidate_idx[
@@ -125,12 +138,22 @@ class Solver:
                     ]
                 )
             ]
-        else:
+        elif self.guesses[0].rank <= 3000:
             candidate_idx = np.where(self.candidate_mask)[0]
             word_idx = candidate_idx[
                 np.random.choice(
                     self.distances(self.guesses[0].word_idx)[candidate_idx].argsort()[
                         self.candidate_mask.sum() // 2 :
+                    ]
+                )
+            ]
+        else:
+            # word_idx = np.random.choice(np.where(self.candidate_mask)[0])
+            candidate_idx = np.where(self.candidate_mask)[0]
+            word_idx = candidate_idx[
+                np.random.choice(
+                    self.distances(self.guesses[0].word_idx)[candidate_idx].argsort()[
+                        self.candidate_mask.sum() * 3 // 4 :
                     ]
                 )
             ]
