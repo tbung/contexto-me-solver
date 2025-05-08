@@ -1,9 +1,12 @@
+import time
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser
+from pathlib import Path
 
 import numpy as np
 import rich
-from rich.prompt import IntPrompt, Prompt, PromptBase, InvalidResponse
+from rich.prompt import IntPrompt, InvalidResponse, Prompt, PromptBase
 
+from solvtext.api import get_rank_from_api
 from solvtext.solve import Solver
 
 
@@ -28,10 +31,10 @@ class GuessPrompt(PromptBase[int | str]):
         return value
 
 
-def run_interactive(distance_offset: float, debug_target: str | None):
+def run_interactive(data_dir: Path, distance_offset: float, debug_target: str | None):
     num_guesses_with_invalid = 0
 
-    solver = Solver(debug_target=debug_target, distance_offset=distance_offset)
+    solver = Solver(data_dir, debug_target=debug_target, distance_offset=distance_offset)
 
     while solver.has_candidates() and solver.best_rank > 1:
         num_guesses_with_invalid += 1
@@ -76,8 +79,39 @@ def run_interactive(distance_offset: float, debug_target: str | None):
         print("No more candidates to try")
 
 
-def run_automatic(game: int, distance_offset: float, debug_target: str | None):
-    pass
+def run_automatic(data_dir: Path, game: int, distance_offset: float, debug_target: str | None):
+    num_guesses_with_invalid = 0
+
+    solver = Solver(data_dir, distance_offset=distance_offset, debug_target=debug_target)
+
+    while solver.has_candidates() and solver.best_rank > 0:
+        time.sleep(0.2)
+        num_guesses_with_invalid += 1
+
+        word_idx: int = solver.make_guess()
+
+        print(f"Guess: {solver.words[word_idx]}")
+
+        result = get_rank_from_api(game, solver.words[word_idx])
+
+        if result is None:
+            solver.update_candidates()
+            continue
+
+        if result.word != result.lemma and result.lemma in solver.words:
+            word_idx = solver.words.index(result.lemma)
+            print(f"New Word: {result.lemma}")
+
+        print(f"Rank: {result.distance}")
+
+        solver.add_guess(word_idx, result.distance)
+
+    print(
+        f"Number of guesses (valid/all): {solver.num_guesses}/{num_guesses_with_invalid}"
+    )
+
+    if solver.best_rank > 0:
+        print("No more candidates to try")
 
 
 def _run_simulation(solver: Solver) -> int:
@@ -95,8 +129,8 @@ def _run_simulation(solver: Solver) -> int:
     return solver.num_guesses
 
 
-def run_simulations(n_runs: int):
-    solver = Solver()
+def run_simulations(data_dir: Path, n_runs: int):
+    solver = Solver(data_dir)
 
     num_guesses: list[int] = []
 
@@ -110,6 +144,12 @@ def run_simulations(n_runs: int):
 def main():
     parser = ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatter)
 
+    parser.add_argument(
+        "--data-dir",
+        action="store",
+        type=Path,
+        help="Simulate a number of games (non-interactive)",
+    )
     parser.add_argument(
         "--simulate",
         action="store_true",
@@ -132,7 +172,7 @@ def main():
         "--distance-offset",
         action="store",
         nargs="?",
-        default=0.05,
+        default=0,
         type=float,
         help="Minimum distance to decision surface. Higher values means more guesses, but a lower chance of completely missing the target.",
     )
@@ -143,8 +183,8 @@ def main():
     args = parser.parse_args()
 
     if args.simulate:
-        run_simulations(args.num_simulate)
+        run_simulations(args.data_dir, args.num_simulate)
     elif args.automate_game is not None:
-        run_automatic(args.automate_game, args.distance_offset, args.debug_target)
+        run_automatic(args.data_dir, args.automate_game, args.distance_offset, args.debug_target)
     else:
-        run_interactive(args.distance_offset, args.debug_target)
+        run_interactive(args.data_dir, args.distance_offset, args.debug_target)

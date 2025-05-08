@@ -1,10 +1,12 @@
 from dataclasses import dataclass, field
+from functools import lru_cache
+from pathlib import Path
 from typing import cast
 
-from solvtext.data import load_words
-from functools import lru_cache
 import numpy as np
 import numpy.typing as npt
+
+from solvtext.data import load_words
 
 
 @dataclass(order=True)
@@ -15,11 +17,16 @@ class Guess:
 
 
 class Solver:
-    def __init__(self, debug_target: str | None = None, distance_offset: float = 0):
+    def __init__(
+        self,
+        data_dir: Path,
+        debug_target: str | None = None,
+        distance_offset: float = 0,
+    ):
         self.words: list[str]
         self.vectors: npt.NDArray[np.float32]
 
-        self.words, self.vectors = load_words()
+        self.words, self.vectors = load_words(data_dir)
 
         self.candidate_mask: npt.NDArray[np.integer] = np.ones(
             (len(self.words),), dtype=np.integer
@@ -85,7 +92,6 @@ class Solver:
 
     def make_guess(self) -> int:
         if len(self.guesses) < 2:
-            # word_idx = np.random.choice(np.where(self.candidate_mask)[0])
             candidate_idx = np.where(self.candidate_mask)[0]
             vector = self.vectors.mean(axis=0)
             word_idx = candidate_idx[
@@ -122,7 +128,6 @@ class Solver:
                 )
             ]
         else:
-            # word_idx = np.random.choice(np.where(self.candidate_mask)[0])
             candidate_idx = np.where(self.candidate_mask)[0]
             word_idx = candidate_idx[
                 np.random.choice(
