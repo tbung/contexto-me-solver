@@ -14,7 +14,7 @@ dependencies = [
 ]
 
 [project.scripts]
-solvtext = "solvtext.solve:main"
+solvtext = "solvtext.cli:main"
 
 [tool.setuptools]
 packages = ["solvtext"]

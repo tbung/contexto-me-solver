@@ -1,34 +1,10 @@
-from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser
 from dataclasses import dataclass, field
-from typing import Literal, cast, overload
+from typing import cast
 
-import rich
 from solvtext.data import load_words
 from functools import lru_cache
-from rich.prompt import IntPrompt, Prompt, PromptBase, InvalidResponse
 import numpy as np
 import numpy.typing as npt
-
-
-class GuessPrompt(PromptBase[int | str]):
-    response_type = int | str
-    choices: list[str] = ["n", "c"]
-    illegal_choice_message = (
-        "[prompt.invalid]Please enter a valid integer number or one of ['n', 'c']"
-    )
-
-    def process_response(self, value: str) -> int | str:
-        value = value.strip()
-        try:
-            return_value: int = int(value)
-            return return_value
-        except ValueError:
-            pass
-
-        if not self.check_choice(value):
-            raise InvalidResponse(self.illegal_choice_message)
-
-        return value
 
 
 @dataclass(order=True)
@@ -58,11 +34,9 @@ class Solver:
 
         self.distance_offset: float = distance_offset
 
-        self._num_guesses: int = 0
-
     @property
     def num_guesses(self) -> int:
-        return self._num_guesses + len(self.guesses)
+        return len(self.guesses)
 
     def _vector_distances(
         self, vector: npt.NDArray[np.float32]
@@ -162,115 +136,18 @@ class Solver:
 
         return cast(int, word_idx)
 
-    def interact(self) -> bool:
-        rich.print(
-            f"Remaining search space: {self.candidate_mask.sum()}/{self.candidate_mask.shape[0]}"
-        )
+    @property
+    def best_rank(self) -> int:
+        if len(self.guesses) == 0:
+            return np.iinfo(np.int32).max
 
-        word_idx = self.make_guess()
-        word = self.words[word_idx]
+        return self.guesses[0].rank
 
-        rich.print(f"Guess: [bold]{word}[/bold]")
-        rank = GuessPrompt.ask(
-            "Enter rank or 'n' if unknown or 'c' if contexto.me picks a different word",
-            show_choices=False,
-        )
+    def has_candidates(self) -> bool:
+        return self.candidate_mask.sum() > 0
 
-        if rank == "n":
-            self.update_candidates()
-            return True
+    def reset(self) -> None:
+        self.candidate_mask = np.ones((len(self.words),), dtype=np.integer)
+        self.already_guessed_mask = np.zeros((len(self.words),), dtype=np.bool_)
 
-        if rank == "c":
-            new_word = Prompt.ask("Enter new word", default=word)
-            if new_word in self.words:
-                word_idx = self.words.index(new_word)
-                word = new_word
-                self.already_guessed_mask[word_idx] = 1
-            else:
-                print(f"Unknown word, using '{word}'")
-
-            rank = IntPrompt.ask(f"Enter rank for {word}")
-
-        assert type(rank) is int
-
-        self.add_guess(word_idx, rank)
-
-        return rank > 1
-
-
-def simulate():
-    solver = Solver()
-    target_idx = np.random.choice(np.arange(len(solver.words)))
-
-    distances = solver.distances(target_idx).copy()
-    rank = distances.argsort().argsort()
-
-    num_guesses = 0
-
-    print(solver.words[target_idx])
-
-    while True:
-        guess_idx = solver.make_guess()
-        solver.add_guess(guess_idx, rank[guess_idx])
-
-        num_guesses += 1
-
-        if rank[guess_idx] == 0:
-            break
-
-    return num_guesses
-
-
-def main():
-    parser = ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatter)
-
-    parser.add_argument(
-        "--simulate",
-        action="store_true",
-        help="Simulate a number of games (non-interactive)",
-    )
-    parser.add_argument(
-        "-n",
-        "--num-simulate",
-        action="store",
-        nargs="?",
-        default=100,
-        type=int,
-        help="Number of games to simulate",
-    )
-    parser.add_argument(
-        "--debug-target", action="store", nargs="?", default=None, type=str
-    )
-    parser.add_argument(
-        "-d",
-        "--distance-offset",
-        action="store",
-        nargs="?",
-        default=0.05,
-        type=float,
-        help="Minimum distance to decision surface. Higher values means more guesses, but a lower chance of completely missing the target.",
-    )
-
-    args = parser.parse_args()
-
-    if args.simulate:
-        num_guesses = []
-        for _ in range(args.num_simulate):
-            num_guesses.append(simulate())
-
-        print(np.mean(num_guesses))
-        return
-
-    solver = Solver(
-        debug_target=args.debug_target, distance_offset=args.distance_offset
-    )
-    num_guesses = 0
-    try:
-        while solver.interact():
-            num_guesses += 1
-    except (KeyboardInterrupt, ValueError):
-        pass
-    finally:
-        rich.print(
-            f"\nNumber of guesses (valid/all): {solver.num_guesses}/{num_guesses}"
-        )
+        self.guesses = []
