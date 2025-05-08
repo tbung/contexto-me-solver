@@ -34,7 +34,9 @@ class GuessPrompt(PromptBase[int | str]):
 def run_interactive(data_dir: Path, distance_offset: float, debug_target: str | None):
     num_guesses_with_invalid = 0
 
-    solver = Solver(data_dir, debug_target=debug_target, distance_offset=distance_offset)
+    solver = Solver(
+        data_dir, debug_target=debug_target, distance_offset=distance_offset
+    )
 
     while solver.has_candidates() and solver.best_rank > 1:
         num_guesses_with_invalid += 1
@@ -79,18 +81,22 @@ def run_interactive(data_dir: Path, distance_offset: float, debug_target: str | 
         print("No more candidates to try")
 
 
-def run_automatic(data_dir: Path, game: int, distance_offset: float, debug_target: str | None):
+def run_automatic(
+    data_dir: Path, game: int, distance_offset: float, debug_target: str | None
+):
     num_guesses_with_invalid = 0
 
-    solver = Solver(data_dir, distance_offset=distance_offset, debug_target=debug_target)
+    solver = Solver(
+        data_dir, distance_offset=distance_offset, debug_target=debug_target
+    )
 
     while solver.has_candidates() and solver.best_rank > 0:
-        time.sleep(0.2)
         num_guesses_with_invalid += 1
 
         word_idx: int = solver.make_guess()
 
         print(f"Guess: {solver.words[word_idx]}")
+        time.sleep(0.2)
 
         result = get_rank_from_api(game, solver.words[word_idx])
 
@@ -148,7 +154,8 @@ def main():
         "--data-dir",
         action="store",
         type=Path,
-        help="Simulate a number of games (non-interactive)",
+        default=Path("./data"),
+        help="Path to directory where word list and embeddings will be stored",
     )
     parser.add_argument(
         "--simulate",
@@ -177,7 +184,12 @@ def main():
         help="Minimum distance to decision surface. Higher values means more guesses, but a lower chance of completely missing the target.",
     )
     parser.add_argument(
-        "--automate-game", action="store", nargs="?", default=None, type=int
+        "--automate-game",
+        action="store",
+        nargs="?",
+        default=None,
+        type=int,
+        help="Automatically run game GAME via the API",
     )
 
     args = parser.parse_args()
@@ -185,6 +197,8 @@ def main():
     if args.simulate:
         run_simulations(args.data_dir, args.num_simulate)
     elif args.automate_game is not None:
-        run_automatic(args.data_dir, args.automate_game, args.distance_offset, args.debug_target)
+        run_automatic(
+            args.data_dir, args.automate_game, args.distance_offset, args.debug_target
+        )
     else:
         run_interactive(args.data_dir, args.distance_offset, args.debug_target)
