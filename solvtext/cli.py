@@ -292,6 +292,7 @@ def main():
         )
     elif args.automate_random_games is not None:
         num_guesses: list[int] = []
+        args.data_dir.mkdir(exist_ok=True)
         with (args.data_dir / "results.csv").open("a+") as f:
             for game in cast(
                 npt.NDArray[np.integer],
@@ -312,6 +313,11 @@ def main():
 
                 f.write(f"{game},{n}\n")
                 f.flush()
-        print(f"Average number of guesses: {np.mean(num_guesses)}")
+
+        n_arr = np.array(num_guesses)
+        print(f"Median number of guesses: {np.median(n_arr[n_arr != -1])}")
+        print(
+            f"Median number of guesses with failures: {np.median(np.where(n_arr == -1, 100, n_arr))}"
+        )
     else:
         run_interactive(args.data_dir, args.distance_offset, args.debug_target)
