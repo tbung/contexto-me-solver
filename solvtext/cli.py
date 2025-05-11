@@ -215,13 +215,16 @@ def main():
     """
     Entry point to the command line interface for the solver.
     """
-    parser = ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatter)
+    parser = ArgumentParser(
+        formatter_class=ArgumentDefaultsHelpFormatter,
+        description="A contexto.me solver.",
+    )
 
     parser.add_argument(
         "--data-dir",
         action="store",
         type=Path,
-        default=Path("./data"),
+        required=True,
         help="Path to directory where word list and embeddings will be stored",
     )
     parser.add_argument(
