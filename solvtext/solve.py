@@ -109,7 +109,7 @@ class Solver:
         elif self.guesses[0].rank <= 300:
             candidate_idx = np.where(self.candidate_mask)[0]
             vector = self.vectors[
-                [guess.word_idx for guess in self.guesses if guess.rank <= 300]
+                [guess.word_idx for guess in self.guesses if guess.rank <= 300][:5]
             ].mean(axis=0)
             word_idx = candidate_idx[
                 self._vector_distances(vector)[candidate_idx].argmin()

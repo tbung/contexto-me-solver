@@ -179,7 +179,7 @@ def main():
         "--distance-offset",
         action="store",
         nargs="?",
-        default=0,
+        default=0.2,
         type=float,
         help="Minimum distance to decision surface. Higher values means more guesses, but a lower chance of completely missing the target.",
     )
