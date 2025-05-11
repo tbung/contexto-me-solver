@@ -5,9 +5,9 @@ import nltk
 import numpy as np
 import numpy.typing as npt
 import requests
+from nltk.corpus.reader.wordnet import ADJ, ADV, NOUN, VERB
 from nltk.stem import WordNetLemmatizer
 from nltk.tag import pos_tag
-from nltk.corpus.reader.wordnet import NOUN, VERB, ADJ, ADV
 from rich.progress import track
 
 
@@ -22,6 +22,7 @@ def _download(file_path: Path, url: str):
                 for chunk in track(
                     r.iter_content(chunk_size=8192),
                     total=int(r.headers.get("content-length", 0)) / 8192,
+                    description="Downloading...",
                 ):
                     f.write(chunk)
     except:
@@ -87,6 +88,7 @@ def load_words(data_dir: Path) -> tuple[list[str], npt.NDArray[np.float32]]:
             data_dir / f"{embedding_file}.zip",
             "https://nlp.stanford.edu/data/glove.840B.300d.zip",
         )
+        print("Extracting glove embeddings...")
         with ZipFile(data_dir / f"{embedding_file}.zip") as f:
             f.extractall(data_dir)
         with (data_dir / f"{embedding_file}.txt").open() as f:
