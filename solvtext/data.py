@@ -6,6 +6,8 @@ import numpy as np
 import numpy.typing as npt
 import requests
 from nltk.stem import WordNetLemmatizer
+from nltk.tag import pos_tag
+from nltk.corpus.reader.wordnet import NOUN, VERB, ADJ, ADV
 from rich.progress import track
 
 
@@ -25,6 +27,25 @@ def _download(file_path: Path, url: str):
     except:
         file_path.unlink()
         raise
+
+
+def _pt2wn(pos: str) -> str:
+    pos = pos.lower()
+
+    if pos.startswith("jj"):
+        tag = ADJ
+    elif pos == "md":
+        tag = VERB
+    elif pos.startswith("rb"):
+        tag = ADV
+    elif pos.startswith("vb"):
+        tag = VERB
+    elif pos == "wrb":
+        tag = ADV
+    else:
+        tag = NOUN
+
+    return tag
 
 
 def load_words(data_dir: Path) -> tuple[list[str], npt.NDArray[np.float32]]:
@@ -70,16 +91,22 @@ def load_words(data_dir: Path) -> tuple[list[str], npt.NDArray[np.float32]]:
         "https://raw.githubusercontent.com/first20hours/google-10000-english/refs/heads/master/20k.txt",
     )
     with (data_dir / "20k.txt").open() as f:
-        words = {word.strip() for word in f.readlines()}
+        words = [word.strip() for word in f.readlines()]
 
     # not necessarily correct, but contexto.me seems to try to lemmatize all inputs
     nltk.download("wordnet")
+    nltk.download("averaged_perceptron_tagger_eng")
     wnl = WordNetLemmatizer()
-    words = {
-        wnl.lemmatize(word, pos="v" if word.endswith("ing") else "n") for word in words
-    }
+    words_tagged: list[tuple[str, str]] = pos_tag(words)
+    words = [wnl.lemmatize(word, pos=_pt2wn(tag)) for word, tag in words_tagged]
 
-    filtered_words = [word for word in words if word in glove]
+    # filtered_words = [word for word in words if word in glove]
+    filtered_words: list[str] = []
+    seen: set[str] = set()
+    for word in words:
+        if word not in seen and word in glove:
+            filtered_words.append(word)
+            seen.add(word)
     vectors = np.vstack([glove[word] for word in filtered_words])
 
     with (data_dir / "words.txt").open("wt") as f:
