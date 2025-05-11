@@ -12,12 +12,42 @@ from solvtext.data import load_words
 
 @dataclass(order=True)
 class Guess:
+    """
+    A class representing a guess in the game.
+
+    Attributes
+    ----------
+    rank : int
+        The rank of the guess.
+    word : str
+        The word guessed.
+    word_idx : int
+        The index of the guessed word in the word and vector list.
+    """
+
     rank: int
     word: str = field(compare=False)
     word_idx: int = field(compare=False)
 
 
 class Solver:
+    """
+    A class representing a solver for the game.
+
+    Attributes
+    ----------
+    data_dir : Path
+        The directory where the word list and vectors are stored.
+    debug_target : str | None
+        The target word for debugging purposes.
+    distance_offset : float
+        The minimum distance to the decision surface.
+    words : list[str]
+        The list of words.
+    vectors : npt.NDArray[np.float32]
+        The word vectors.
+    """
+
     def __init__(
         self,
         data_dir: Path,
@@ -44,6 +74,9 @@ class Solver:
 
     @property
     def num_guesses(self) -> int:
+        """
+        Returns the number of guesses made.
+        """
         return len(self.guesses)
 
     def _vector_distances(
@@ -55,7 +88,7 @@ class Solver:
             / np.linalg.norm(self.vectors, axis=1)
         )
 
-    def __eq__(self, other):
+    def __eq__(self, other: object):
         return True
 
     def __hash__(self):
@@ -63,9 +96,33 @@ class Solver:
 
     @lru_cache
     def distances(self, word_idx: int) -> npt.NDArray[np.float32]:
+        """
+        Calculate the distances from the given word index to all other words.
+
+        Parameters
+        ----------
+        word_idx : int
+            The index of the word to calculate distances from.
+
+        Returns
+        -------
+        npt.NDArray[np.float32]
+            The distances from the given word index to all other words.
+
+        Notes
+        -----
+        The result is cached for the entire class, so multiple instances share the same cache.
+        """
         return self._vector_distances(self.vectors[word_idx])
 
     def update_candidates(self) -> None:
+        """
+        Update the candidate mask based on the guesses made so far.
+
+        This method calculates the decision rules for consecutive pairs of guesses and updates the candidates
+        based on how many rules they agree with.
+        """
+
         score = np.zeros_like(self.candidate_mask)
         for guess, other in zip(self.guesses, self.guesses[1:]):
             score += (
@@ -90,6 +147,17 @@ class Solver:
         ).astype(int)
 
     def add_guess(self, word_idx: int, rank: int):
+        """
+        Add a guess to the solver.
+
+        Parameters
+        ----------
+        word_idx : int
+            The index of the guessed word.
+        rank : int
+            The rank of the guessed word.
+        """
+
         guess = Guess(rank, self.words[word_idx], word_idx)
 
         bisect.insort(self.guesses, guess)
@@ -97,6 +165,15 @@ class Solver:
         self.update_candidates()
 
     def make_guess(self) -> int:
+        """
+        Make a guess based on the current state of the solver.
+
+        Returns
+        -------
+        int
+            The index of the guessed word.
+        """
+
         if len(self.guesses) < 2:
             candidate_idx = np.where(self.candidate_mask)[0]
             vector = self.vectors.mean(axis=0)
@@ -149,6 +226,12 @@ class Solver:
 
     @property
     def best_rank(self) -> int:
+        """
+        Returns the best rank of the guesses made so far.
+
+        If no guesses have been made, returns the maximum possible rank.
+        """
+
         if len(self.guesses) == 0:
             return np.iinfo(np.int32).max
 
@@ -158,6 +241,12 @@ class Solver:
         return self.candidate_mask.sum() > 0
 
     def reset(self) -> None:
+        """
+        Reset the solver to its initial state.
+
+        This method clears the guesses and resets the candidate and already guessed masks.
+        """
+
         self.candidate_mask = np.ones((len(self.words),), dtype=np.integer)
         self.already_guessed_mask = np.zeros((len(self.words),), dtype=np.bool_)
 

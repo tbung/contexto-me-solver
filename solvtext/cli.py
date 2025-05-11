@@ -13,6 +13,10 @@ from solvtext.solve import Solver
 
 
 class GuessPrompt(PromptBase[int | str]):
+    """
+    Prompt for a guess rank. Accepts integers or 'n'/'c' for unknown or contexto.me choice.
+    """
+
     response_type = int | str
     choices: list[str] = ["n", "c"]
     illegal_choice_message = (
@@ -34,6 +38,18 @@ class GuessPrompt(PromptBase[int | str]):
 
 
 def run_interactive(data_dir: Path, distance_offset: float, debug_target: str | None):
+    """
+    Run a solver in interactive mode, allowing the user to input guesses and ranks.
+
+    Parameters
+    ----------
+    data_dir : Path
+        Path to the directory where the word list and embeddings are stored.
+    distance_offset : float
+        Minimum distance to decision surface. Higher values mean more guesses, but a lower chance of completely missing the target.
+    debug_target : str | None
+        If provided, the solver will be run with this target word for additional debug output.
+    """
     num_guesses_with_invalid = 0
 
     solver = Solver(
@@ -90,6 +106,28 @@ def run_automatic(
     max_guesses: int | None,
     debug_target: str | None = None,
 ) -> int:
+    """
+    Run a solver in automatic mode, retrieving the rank from the contexto.me API.
+
+    Parameters
+    ----------
+    data_dir : Path
+        Path to the directory where the word list and embeddings are stored.
+    game : int
+        The game number to run.
+    distance_offset : float
+        Minimum distance to decision surface. Higher values mean more guesses, but a lower chance of completely missing the target.
+    max_guesses : int | None
+        Maximum number of guesses to make. If None, no limit is set.
+    debug_target : str | None
+        If provided, the solver will be run with this target word for additional debug output.
+
+    Returns
+    -------
+    int
+        The number of guesses made.
+    """
+
     num_guesses_with_invalid = 0
 
     solver = Solver(
@@ -126,7 +164,9 @@ def run_automatic(
         f"Number of guesses (valid/all): {solver.num_guesses}/{num_guesses_with_invalid}"
     )
 
-    if solver.best_rank > 0 or (max_guesses is not None and solver.num_guesses > max_guesses):
+    if solver.best_rank > 0 or (
+        max_guesses is not None and solver.num_guesses > max_guesses
+    ):
         print("No more candidates to try")
         return -1
 
@@ -149,6 +189,17 @@ def _run_simulation(solver: Solver) -> int:
 
 
 def run_simulations(data_dir: Path, n_runs: int):
+    """
+    Run a number of simulations with random targets.
+
+    Parameters
+    ----------
+    data_dir : Path
+        Path to the directory where the word list and embeddings are stored.
+    n_runs : int
+        Number of simulations to run.
+    """
+
     solver = Solver(data_dir)
 
     num_guesses: list[int] = []
@@ -161,6 +212,9 @@ def run_simulations(data_dir: Path, n_runs: int):
 
 
 def main():
+    """
+    Entry point to the command line interface for the solver.
+    """
     parser = ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatter)
 
     parser.add_argument(

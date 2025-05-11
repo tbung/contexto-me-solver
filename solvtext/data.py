@@ -49,6 +49,20 @@ def _pt2wn(pos: str) -> str:
 
 
 def load_words(data_dir: Path) -> tuple[list[str], npt.NDArray[np.float32]]:
+    """
+    Load the word list and vectors from the specified directory. If they are not present, download and process them.
+
+    Parameters
+    ----------
+    data_dir : Path
+        Path to the directory where the word list and embeddings are stored.
+
+    Returns
+    -------
+    tuple[list[str], npt.NDArray[np.float32]]
+        A tuple containing the list of words and their corresponding vectors.
+    """
+
     data_dir.mkdir(exist_ok=True)
 
     embedding_file = "glove.840B.300d"
@@ -100,7 +114,7 @@ def load_words(data_dir: Path) -> tuple[list[str], npt.NDArray[np.float32]]:
     words_tagged: list[tuple[str, str]] = pos_tag(words)
     words = [wnl.lemmatize(word, pos=_pt2wn(tag)) for word, tag in words_tagged]
 
-    # filtered_words = [word for word in words if word in glove]
+    # keep only unique words but preserve order of how common the words are
     filtered_words: list[str] = []
     seen: set[str] = set()
     for word in words:
