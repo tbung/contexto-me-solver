@@ -1,8 +1,10 @@
 import time
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser
 from pathlib import Path
+from typing import cast
 
 import numpy as np
+import numpy.typing as npt
 import rich
 from rich.prompt import IntPrompt, InvalidResponse, Prompt, PromptBase
 
@@ -82,15 +84,23 @@ def run_interactive(data_dir: Path, distance_offset: float, debug_target: str | 
 
 
 def run_automatic(
-    data_dir: Path, game: int, distance_offset: float, debug_target: str | None
-):
+    data_dir: Path,
+    game: int,
+    distance_offset: float,
+    max_guesses: int | None,
+    debug_target: str | None = None,
+) -> int:
     num_guesses_with_invalid = 0
 
     solver = Solver(
         data_dir, distance_offset=distance_offset, debug_target=debug_target
     )
 
-    while solver.has_candidates() and solver.best_rank > 0:
+    while (
+        solver.has_candidates()
+        and solver.best_rank > 0
+        and (max_guesses is None or solver.num_guesses < max_guesses)
+    ):
         num_guesses_with_invalid += 1
 
         word_idx: int = solver.make_guess()
@@ -116,8 +126,11 @@ def run_automatic(
         f"Number of guesses (valid/all): {solver.num_guesses}/{num_guesses_with_invalid}"
     )
 
-    if solver.best_rank > 0:
+    if solver.best_rank > 0 or (max_guesses is not None and solver.num_guesses > max_guesses):
         print("No more candidates to try")
+        return -1
+
+    return solver.num_guesses
 
 
 def _run_simulation(solver: Solver) -> int:
@@ -189,7 +202,26 @@ def main():
         nargs="?",
         default=None,
         type=int,
+        metavar="GAME",
         help="Automatically run game GAME via the API",
+    )
+    parser.add_argument(
+        "--max-guesses",
+        action="store",
+        nargs="?",
+        default=None,
+        type=int,
+        metavar="TRIES",
+        help="Maximum number of guesses when automatically running a game via the API",
+    )
+    parser.add_argument(
+        "--automate-random-games",
+        action="store",
+        nargs="?",
+        default=None,
+        type=int,
+        metavar="NUM_GAMES",
+        help="Automatically run NUM_GAMES games via the API",
     )
 
     args = parser.parse_args()
@@ -198,7 +230,34 @@ def main():
         run_simulations(args.data_dir, args.num_simulate)
     elif args.automate_game is not None:
         run_automatic(
-            args.data_dir, args.automate_game, args.distance_offset, args.debug_target
+            args.data_dir,
+            args.automate_game,
+            args.distance_offset,
+            args.max_guesses,
+            args.debug_target,
         )
+    elif args.automate_random_games is not None:
+        num_guesses: list[int] = []
+        with (args.data_dir / "results.csv").open("a+") as f:
+            for game in cast(
+                npt.NDArray[np.integer],
+                np.random.choice(963, args.automate_random_games),
+            ):
+                try:
+                    n = run_automatic(
+                        args.data_dir,
+                        game,
+                        args.distance_offset,
+                        args.max_guesses,
+                        args.debug_target,
+                    )
+                except Exception as e:
+                    print(e)
+                    n = -1
+                num_guesses.append(n)
+
+                f.write(f"{game},{n}\n")
+                f.flush()
+        print(f"Average number of guesses: {np.mean(num_guesses)}")
     else:
         run_interactive(args.data_dir, args.distance_offset, args.debug_target)
