@@ -1,3 +1,4 @@
+import bisect
 from dataclasses import dataclass, field
 from functools import lru_cache
 from pathlib import Path
@@ -91,8 +92,7 @@ class Solver:
     def add_guess(self, word_idx: int, rank: int):
         guess = Guess(rank, self.words[word_idx], word_idx)
 
-        self.guesses.append(guess)
-        self.guesses.sort()
+        bisect.insort(self.guesses, guess)
 
         self.update_candidates()
 
