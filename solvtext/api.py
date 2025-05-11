@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 import requests
 
 
@@ -15,6 +15,10 @@ def get_rank_from_api(game: int, word: str) -> ApiResponse | None:
     if r.status_code == 404:
         return None
 
-    response = ApiResponse.model_validate(r.json())
+    try:
+        response = ApiResponse.model_validate(r.json())
+    except (requests.JSONDecodeError, ValidationError):
+        print(f"Response(code={r.status_code}, content={r.text})")
+        raise
 
     return response
