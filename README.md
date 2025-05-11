@@ -4,6 +4,8 @@ An automatic solver for the [contexto.me](https://contexto.me/en/) word search g
 
 ## Installation
 
+This project requires Python version 3.11 or newer.
+
 ```bash
 pip install git+https://github.com/tbung/contexto-me-solver.git
 ```
